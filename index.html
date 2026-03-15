@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOGIC — Circuit Puzzle Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- MENU SCREEN -->
+  <div id="screen-menu" class="screen active">
+    <div class="menu-container">
+      <div class="crt-title-wrapper">
+        <h1 class="crt-title">L O G I C</h1>
+        <p class="subtitle">// CIRCUIT PUZZLE TERMINAL v1.0</p>
+      </div>
+      <div class="menu-buttons">
+        <button id="btn-play" class="crt-btn crt-btn-primary">[ PLAY ]</button>
+        <button id="btn-how" class="crt-btn">[ HOW TO PLAY ]</button>
+      </div>
+      <div class="menu-footer">
+        <span class="blink">&#9611;</span> READY
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY SCREEN -->
+  <div id="screen-how" class="screen">
+    <div class="menu-container">
+      <h2 class="crt-title">// HOW TO PLAY</h2>
+      <div class="how-content">
+        <p>Toggle the <span class="highlight">INPUT nodes</span> on the left to change their signal (0 or 1).</p>
+        <p>Signals flow through <span class="highlight">LOGIC GATES</span> to reach the OUTPUT node on the right.</p>
+        <p>Your goal: make the output match the <span class="highlight amber">TARGET -&gt; 1</span> or <span class="highlight amber">TARGET -&gt; 0</span> indicator.</p>
+        <p>Solve faster for higher scores and better medals:</p>
+        <ul>
+          <li class="gold-text">[G] GOLD &mdash; under target time with speed bonus</li>
+          <li class="silver-text">[S] SILVER &mdash; under 2&times; target time</li>
+          <li class="bronze-text">[B] BRONZE &mdash; under 5&times; target time</li>
+        </ul>
+        <p>Levels 1&ndash;7 introduce each gate type with tutorials.</p>
+        <p>Level 41+ are procedurally generated &mdash; infinite challenges!</p>
+      </div>
+      <button class="crt-btn btn-back">[ BACK ]</button>
+    </div>
+  </div>
+
+  <!-- LEVEL SELECT SCREEN -->
+  <div id="screen-select" class="screen">
+    <div class="select-container">
+      <h2 class="crt-title">// SELECT LEVEL</h2>
+      <div id="level-grid" class="level-grid"></div>
+      <button class="crt-btn btn-back">[ BACK ]</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="screen-game" class="screen">
+    <div class="game-container">
+      <div class="game-toolbar">
+        <button id="btn-pause" class="crt-btn crt-btn-sm">[ MENU ]</button>
+        <button id="btn-hint" class="crt-btn crt-btn-sm">[ HINT ]</button>
+      </div>
+      <canvas id="game-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- TUTORIAL OVERLAY SCREEN -->
+  <div id="screen-tutorial" class="screen screen-overlay">
+    <div class="tutorial-container">
+      <div id="tutorial-content"></div>
+    </div>
+  </div>
+
+  <!-- LEVEL COMPLETE SCREEN -->
+  <div id="screen-complete" class="screen">
+    <div class="menu-container">
+      <h2 class="crt-title">// CIRCUIT SOLVED</h2>
+      <div class="complete-info">
+        <div class="complete-level" id="complete-level"></div>
+        <div class="medal-display" id="complete-medal"></div>
+        <div class="complete-row">
+          <span class="complete-label">SCORE</span>
+          <span class="complete-value" id="complete-score"></span>
+        </div>
+        <div class="complete-row">
+          <span class="complete-label">TIME</span>
+          <span class="complete-value" id="complete-time"></span>
+        </div>
+      </div>
+      <div class="complete-buttons">
+        <button id="btn-retry" class="crt-btn">[ RETRY ]</button>
+        <button id="btn-next" class="crt-btn crt-btn-primary">[ NEXT ]</button>
+        <button id="btn-menu-from-complete" class="crt-btn">[ MENU ]</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
