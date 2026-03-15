@@ -585,13 +585,13 @@ export const LEVELS = [
   },
 
   // ── Level 20: XNOR + OR ─────────────────────────────────────────────────────
-  // g0=XNOR(A,B), g1=OR(g0,C) → out0   g2=AND(A,C) → out1
-  // target [T,T].  init A=F B=F C=F → g0=T g1=T g2=F → [T,F] ✓
-  // solution A=T B=F C=T → XNOR(T,F)=F OR(F,T)=T AND(T,T)=T → [T,T] ✓
+  // g0=XNOR(A,B), g1=OR(g0,C) → out0   g2=AND(A,C) → out1   g0 → out2
+  // target [T,T,F].  init A=F B=F C=F → g0=T g1=T g2=F g0=T → [T,F,T] ✓
+  // solution A=T B=F C=T → XNOR(T,F)=F OR(F,T)=T AND(T,T)=T g0=F → [T,T,F] ✓
   {
     id: 20, name: 'XNOR + OR', newGates: [],
-    description: 'XNOR feeds OR, AND on the side.',
-    hint: 'OR(XNOR(A,B), C)=1 is easy. AND needs both A=1 and C=1.',
+    description: 'XNOR feeds OR, AND on the side, XNOR direct.',
+    hint: 'OR(XNOR(A,B), C)=1 and AND(A,C)=1, but XNOR(A,B)=0 when A≠B.',
     inputs: [
       { id: 'A', label: 'A', x: 100, y: 200, initialValue: false },
       { id: 'B', label: 'B', x: 100, y: 300, initialValue: false },
@@ -603,27 +603,28 @@ export const LEVELS = [
       { id: 'g2', type: GATE.AND,  x: 300, y: 390 },
     ],
     outputs: [
-      { id: 'out0', x: 680, y: 310 },
-      { id: 'out1', x: 680, y: 390 },
+      { id: 'out0', x: 680, y: 280 },
+      { id: 'out1', x: 680, y: 360 },
+      { id: 'out2', x: 680, y: 440 },
     ],
     connections: [
       ['A','g0'],['B','g0'],
       ['g0','g1'],['C','g1'],
       ['A','g2'],['C','g2'],
-      ['g1','out0'],['g2','out1'],
+      ['g1','out0'],['g2','out1'],['g0','out2'],
     ],
-    targetPattern: [true, true],
-    targets: { gold: 7, silver: 18, bronze: 36 },
+    targetPattern: [true, true, false],
+    targets: { gold: 8, silver: 20, bronze: 40 },
   },
 
   // ── Level 21: Three-gate chain ─────────────────────────────────────────────
-  // g0=AND(A,B), g1=OR(g0,C), g2=NOT(g1) → out0   g3=XOR(A,C) → out1
-  // target [T,T].  init A=F B=F C=F → NOT(OR(AND=F,F))=T XOR(F,F)=F → [T,F] ✓
-  // solution A=T B=F C=F → AND=F OR(F,F)=F NOT=T XOR(T,F)=T → [T,T] ✓
+  // g0=AND(A,B), g1=OR(g0,C), g2=NOT(g1) → out0   g3=XOR(A,C) → out1   g0 → out2
+  // target [T,T,F].  init A=F B=F C=F → NOT(OR(AND=F,F))=T XOR(F,F)=F AND=F → [T,F,F] ✓
+  // solution A=T B=F C=F → AND=F OR(F,F)=F NOT=T XOR(T,F)=T AND=F → [T,T,F] ✓
   {
     id: 21, name: 'Three Gate Chain', newGates: [],
-    description: 'AND → OR → NOT chain, XOR aside.',
-    hint: 'NOT(OR(AND(A,B), C))=1 needs OR=0. XOR(A,C)=1 when A≠C.',
+    description: 'AND → OR → NOT chain, XOR aside, AND direct.',
+    hint: 'NOT(OR(AND(A,B), C))=1 and XOR(A,C)=1, but AND(A,B)=0.',
     inputs: [
       { id: 'A', label: 'A', x: 80, y: 200, initialValue: false },
       { id: 'B', label: 'B', x: 80, y: 300, initialValue: false },
@@ -636,18 +637,19 @@ export const LEVELS = [
       { id: 'g3', type: GATE.XOR, x: 250, y: 400 },
     ],
     outputs: [
-      { id: 'out0', x: 760, y: 300 },
-      { id: 'out1', x: 760, y: 400 },
+      { id: 'out0', x: 760, y: 280 },
+      { id: 'out1', x: 760, y: 360 },
+      { id: 'out2', x: 760, y: 440 },
     ],
     connections: [
       ['A','g0'],['B','g0'],
       ['g0','g1'],['C','g1'],
       ['g1','g2'],
       ['A','g3'],['C','g3'],
-      ['g2','out0'],['g3','out1'],
+      ['g2','out0'],['g3','out1'],['g0','out2'],
     ],
-    targetPattern: [true, true],
-    targets: { gold: 9, silver: 22, bronze: 44 },
+    targetPattern: [true, true, false],
+    targets: { gold: 10, silver: 25, bronze: 50 },
   },
 
   // ── Level 22: Fan-out ──────────────────────────────────────────────────────
@@ -749,14 +751,14 @@ export const LEVELS = [
   },
 
   // ── Level 25: AND-OR network ───────────────────────────────────────────────
-  // g0=AND(A,B), g1=AND(C,D), g2=OR(g0,g1) → out0   g3=NOR(A,C) → out1
-  // target [T,F].
-  // A=T B=T C=F D=F → AND=T AND=F OR=T NOR(T,F)=F → [T,F] ✓
-  // init all F → [F,T] ✓
+  // g0=AND(A,B), g1=AND(C,D), g2=OR(g0,g1) → out0   g3=NOR(A,C) → out1   g1 → out2
+  // target [T,F,F].
+  // A=T B=T C=F D=F → AND=T AND=F OR=T NOR(T,F)=F AND=F → [T,F,F] ✓
+  // init all F → AND=F AND=F OR=F NOR(T,T)=F AND=F → [F,F,F] ✓
   {
     id: 25, name: 'AND-OR Network', newGates: [],
-    description: 'Two ANDs feed an OR, NOR on the side.',
-    hint: '(A AND B) OR (C AND D) = 1 needs at least one AND=1.',
+    description: 'Two ANDs feed an OR, NOR and AND direct.',
+    hint: '(A AND B) OR (C AND D) = 1 and NOR(A,C)=0, but AND(C,D)=0.',
     inputs: [
       { id: 'A', label: 'A', x: 80, y: 160, initialValue: false },
       { id: 'B', label: 'B', x: 80, y: 250, initialValue: false },
@@ -770,18 +772,19 @@ export const LEVELS = [
       { id: 'g3', type: GATE.NOR, x: 480, y: 430 },
     ],
     outputs: [
-      { id: 'out0', x: 680, y: 300 },
-      { id: 'out1', x: 680, y: 430 },
+      { id: 'out0', x: 680, y: 270 },
+      { id: 'out1', x: 680, y: 350 },
+      { id: 'out2', x: 680, y: 430 },
     ],
     connections: [
       ['A','g0'],['B','g0'],
       ['C','g1'],['D','g1'],
       ['g0','g2'],['g1','g2'],
       ['A','g3'],['C','g3'],
-      ['g2','out0'],['g3','out1'],
+      ['g2','out0'],['g3','out1'],['g1','out2'],
     ],
-    targetPattern: [true, false],
-    targets: { gold: 9, silver: 22, bronze: 44 },
+    targetPattern: [true, false, false],
+    targets: { gold: 10, silver: 25, bronze: 50 },
   },
 
   // ── Level 26: NOR tree ─────────────────────────────────────────────────────
@@ -926,31 +929,34 @@ export const LEVELS = [
   },
 
   // ── Level 30: Bit comparator ───────────────────────────────────────────────
-  // g0=XNOR(A,B) → out0   g1=AND(A,B) → out1
-  // target [T,T].  init A=F B=F → XNOR=T AND=F → [T,F] ✓
-  // solution A=T B=T → XNOR=T AND=T → [T,T] ✓
+  // g0=XNOR(A,B) → out0   g1=AND(A,B) → out1   g2=OR(A,B) → out2
+  // target [T,T,T].  init A=F B=F → XNOR=T AND=F OR=F → [T,F,F] ✓
+  // solution A=T B=T → XNOR=T AND=T OR=T → [T,T,T] ✓
   {
     id: 30, name: 'Bit Comparator', newGates: [],
-    description: 'Check equality and both-on conditions.',
-    hint: 'XNOR=1 when A=B. AND=1 when both are 1. When are both true simultaneously?',
+    description: 'Check equality, both-on, and any-on conditions.',
+    hint: 'XNOR=1 when A=B. AND=1 when both 1. OR=1 when any 1. All true when both 1.',
     inputs: [
       { id: 'A', label: 'A', x: 120, y: 245, initialValue: false },
       { id: 'B', label: 'B', x: 120, y: 355, initialValue: false },
     ],
     gates: [
-      { id: 'g0', type: GATE.XNOR, x: 420, y: 245 },
-      { id: 'g1', type: GATE.AND,  x: 420, y: 355 },
+      { id: 'g0', type: GATE.XNOR, x: 420, y: 200 },
+      { id: 'g1', type: GATE.AND,  x: 420, y: 310 },
+      { id: 'g2', type: GATE.OR,   x: 420, y: 420 },
     ],
     outputs: [
-      { id: 'out0', x: 660, y: 245 },
-      { id: 'out1', x: 660, y: 355 },
+      { id: 'out0', x: 660, y: 200 },
+      { id: 'out1', x: 660, y: 310 },
+      { id: 'out2', x: 660, y: 420 },
     ],
     connections: [
       ['A','g0'],['B','g0'],['g0','out0'],
       ['A','g1'],['B','g1'],['g1','out1'],
+      ['A','g2'],['B','g2'],['g2','out2'],
     ],
-    targetPattern: [true, true],
-    targets: { gold: 5, silver: 12, bronze: 25 },
+    targetPattern: [true, true, true],
+    targets: { gold: 6, silver: 15, bronze: 30 },
   },
 
   // ── Level 31: Priority encoder ─────────────────────────────────────────────

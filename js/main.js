@@ -58,7 +58,7 @@ async function startLevel(levelId) {
     await showTutorial(state.levelDesc.newGates);
   }
 
-  state.startTime = null; // Reset after tutorial
+  state.startTime = performance.now(); // Start timer after tutorial
   startGameLoop();
 }
 
