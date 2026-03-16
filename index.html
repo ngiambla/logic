@@ -29,8 +29,8 @@
     <div class="menu-container">
       <h2 class="crt-title">// HOW TO PLAY</h2>
       <div class="how-content">
-        <p>Toggle the <span class="highlight">INPUT nodes</span> on the left to change their signal (0 or 1).</p>
-        <p>Signals flow through <span class="highlight">LOGIC GATES</span> to reach the OUTPUT node on the right.</p>
+        <p>Toggle the <span class="highlight">INPUT nodes</span> at the top to change their signal (0 or 1).</p>
+        <p>Signals flow through <span class="highlight">LOGIC GATES</span> to reach the OUTPUT node at the bottom.</p>
         <p>Your goal: make the output match the <span class="highlight amber">TARGET -&gt; 1</span> or <span class="highlight amber">TARGET -&gt; 0</span> indicator.</p>
         <p>Solve faster for higher scores and better medals:</p>
         <ul>
@@ -39,7 +39,7 @@
           <li class="bronze-text">[B] BRONZE &mdash; under 5&times; target time</li>
         </ul>
         <p>Levels 1&ndash;7 introduce each gate type with tutorials.</p>
-        <p>Level 41+ are procedurally generated &mdash; infinite challenges!</p>
+        <p>Level 16+ are procedurally generated &mdash; infinite challenges!</p>
       </div>
       <button class="crt-btn btn-back">[ BACK ]</button>
     </div>
@@ -60,6 +60,7 @@
       <div class="game-toolbar">
         <button id="btn-pause" class="crt-btn crt-btn-sm">[ MENU ]</button>
         <button id="btn-hint" class="crt-btn crt-btn-sm">[ HINT ]</button>
+        <button id="btn-submit" class="crt-btn crt-btn-sm challenge-only" style="display:none;">[ SUBMIT ]</button>
       </div>
       <canvas id="game-canvas"></canvas>
     </div>
@@ -69,6 +70,13 @@
   <div id="screen-tutorial" class="screen screen-overlay">
     <div class="tutorial-container">
       <div id="tutorial-content"></div>
+    </div>
+  </div>
+
+  <!-- HINT OVERLAY SCREEN -->
+  <div id="screen-hint" class="screen screen-overlay">
+    <div class="tutorial-container">
+      <div id="hint-content"></div>
     </div>
   </div>
 
@@ -92,6 +100,31 @@
         <button id="btn-retry" class="crt-btn">[ RETRY ]</button>
         <button id="btn-next" class="crt-btn crt-btn-primary">[ NEXT ]</button>
         <button id="btn-menu-from-complete" class="crt-btn">[ MENU ]</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHALLENGE COMPLETE SCREEN -->
+  <div id="screen-challenge-complete" class="screen">
+    <div class="menu-container">
+      <h2 class="crt-title">// CHALLENGE COMPLETE</h2>
+      <div class="complete-info">
+        <div class="complete-row">
+          <span class="complete-label">SOLUTIONS FOUND</span>
+          <span class="complete-value" id="challenge-found"></span>
+        </div>
+        <div class="complete-row">
+          <span class="complete-label">TOTAL POSSIBLE</span>
+          <span class="complete-value" id="challenge-total"></span>
+        </div>
+        <div class="complete-row">
+          <span class="complete-label">SCORE</span>
+          <span class="complete-value" id="challenge-score"></span>
+        </div>
+      </div>
+      <div class="complete-buttons">
+        <button id="btn-challenge-retry" class="crt-btn">[ RETRY ]</button>
+        <button id="btn-challenge-menu" class="crt-btn crt-btn-primary">[ MENU ]</button>
       </div>
     </div>
   </div>

@@ -34,9 +34,22 @@ export function calcScore(elapsedMs, levelNum, targets) {
 export function loadProgress() {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : { levels: {}, totalScore: 0 };
+    if (data) {
+      const progress = JSON.parse(data);
+      // Migration: compute unlockedUpTo from completed levels if missing
+      if (progress.unlockedUpTo === undefined) {
+        let maxCompleted = 0;
+        for (const key of Object.keys(progress.levels)) {
+          const id = parseInt(key, 10);
+          if (id > maxCompleted) maxCompleted = id;
+        }
+        progress.unlockedUpTo = maxCompleted > 0 ? maxCompleted + 1 : 1;
+      }
+      return progress;
+    }
+    return { levels: {}, totalScore: 0, unlockedUpTo: 1 };
   } catch {
-    return { levels: {}, totalScore: 0 };
+    return { levels: {}, totalScore: 0, unlockedUpTo: 1 };
   }
 }
 
@@ -45,6 +58,10 @@ export function saveProgress(progress, levelId, result) {
   if (!existing || result.score > existing.score) {
     progress.levels[levelId] = result;
   }
+  // Unlock next level for hand-crafted levels (1-15)
+  if (levelId <= 15) {
+    progress.unlockedUpTo = Math.max(progress.unlockedUpTo || 1, levelId + 1);
+  }
   progress.totalScore = Object.values(progress.levels).reduce((s, l) => s + l.score, 0);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
@@ -52,4 +69,9 @@ export function saveProgress(progress, levelId, result) {
     // Storage not available
   }
   return progress;
+}
+
+export function isLevelUnlocked(progress, levelId) {
+  if (levelId > 15) return true;
+  return levelId <= (progress.unlockedUpTo || 1);
 }

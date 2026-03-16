@@ -53,8 +53,33 @@ export const INPUT_COLORS = [
   '#7fff00',  // chartreuse
 ];
 
-export const CANVAS_W = 900;
-export const CANVAS_H = 600;
+// Distinct colors for wire overlap coloring
+export const WIRE_COLORS = [
+  '#00e5ff',  // cyan
+  '#ff4dff',  // magenta
+  '#ffd700',  // gold
+  '#ff6b35',  // orange
+  '#7fff00',  // chartreuse
+  '#ff3366',  // rose
+  '#00ff88',  // mint
+  '#aa77ff',  // violet
+  '#ffaa00',  // amber
+  '#33ccff',  // sky
+];
+
+// Dynamic canvas sizing (portrait-friendly)
+export function getCanvasSize() {
+  if (typeof window === 'undefined') {
+    return { width: 600, height: 900 };
+  }
+  const width = Math.max(320, Math.min(window.innerWidth, 600));
+  const height = Math.max(480, Math.min(window.innerHeight - 60, width * 1.5));
+  return { width, height };
+}
+
+// Legacy constants for test compatibility
+export const CANVAS_W = 600;
+export const CANVAS_H = 900;
 export const GATE_W = 84;
 export const GATE_H = 50;
 export const NODE_RADIUS = 18;

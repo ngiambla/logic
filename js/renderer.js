@@ -1,4 +1,4 @@
-import { COLOR, INPUT_COLORS, GATE_LABEL, NODE_TYPE, GATE_W, GATE_H, NODE_RADIUS, PORT_RADIUS, CANVAS_W, CANVAS_H } from './constants.js';
+import { COLOR, INPUT_COLORS, GATE_LABEL, NODE_TYPE, GATE_W, GATE_H, NODE_RADIUS, PORT_RADIUS } from './constants.js';
 import { getPortPos } from './circuit.js';
 
 /** Parse '#rrggbb' → dim rgb string at the given brightness factor (0..1). */
@@ -7,15 +7,6 @@ function dimHex(hex, factor) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
-}
-
-/** Build a map of inputId → color string for this circuit. */
-function buildInputColorMap(circuit) {
-  const map = {};
-  circuit.inputIds.forEach((id, i) => {
-    map[id] = INPUT_COLORS[i % INPUT_COLORS.length];
-  });
-  return map;
 }
 
 let gridCanvas = null;
@@ -86,10 +77,9 @@ export function render(ctx, circuit, uiState) {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
 
-  if (!gridCanvas) initOffscreenCanvases(w, h);
-
-  // Build input→color map for this frame
-  const inputColorMap = buildInputColorMap(circuit);
+  if (!gridCanvas || gridCanvas.width !== w || gridCanvas.height !== h) {
+    initOffscreenCanvases(w, h);
+  }
 
   // Pass 1: Background
   ctx.fillStyle = COLOR.BG;
@@ -99,21 +89,17 @@ export function render(ctx, circuit, uiState) {
   ctx.globalAlpha = 1;
   ctx.drawImage(gridCanvas, 0, 0);
 
-  // Pass 3: LOW wires — input wires get their input's color, gate wires get signal green
+  // Pass 3: LOW wires — use pre-assigned wire.color
   for (const wire of wires) {
     if (!wire.value) {
-      const ic = nodes[wire.fromId]?.type === NODE_TYPE.INPUT
-        ? inputColorMap[wire.fromId] : null;
-      drawWire(ctx, wire, false, ic);
+      drawWire(ctx, wire, false, wire.color || null);
     }
   }
 
   // Pass 4: HIGH wires
   for (const wire of wires) {
     if (wire.value) {
-      const ic = nodes[wire.fromId]?.type === NODE_TYPE.INPUT
-        ? inputColorMap[wire.fromId] : null;
-      drawWire(ctx, wire, true, ic);
+      drawWire(ctx, wire, true, wire.color || null);
     }
   }
 
@@ -142,7 +128,7 @@ export function render(ctx, circuit, uiState) {
     ctx.fillStyle = COLOR.ACCENT;
     ctx.fillText(GATE_LABEL[node.gateType] || node.gateType, node.x, node.y);
 
-    // Input port dots on LEFT edge
+    // Input port dots on TOP edge
     const totalInputs = node.inputIds.length;
     for (let pi = 0; pi < totalInputs; pi++) {
       const pos = getPortPos(node, false, pi, totalInputs);
@@ -157,7 +143,7 @@ export function render(ctx, circuit, uiState) {
       ctx.shadowBlur = 0;
     }
 
-    // Output port dot on RIGHT edge
+    // Output port dot on BOTTOM edge
     const outPos = getPortPos(node, true, 0, 1);
     ctx.beginPath();
     ctx.arc(outPos.x, outPos.y, PORT_RADIUS, 0, Math.PI * 2);
@@ -172,9 +158,10 @@ export function render(ctx, circuit, uiState) {
   ctx.font = 'bold 13px "Courier New", Courier, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const id of circuit.inputIds) {
+  for (let idx = 0; idx < circuit.inputIds.length; idx++) {
+    const id = circuit.inputIds[idx];
     const node = nodes[id];
-    const iColor = inputColorMap[id];            // e.g. '#00e5ff'
+    const iColor = INPUT_COLORS[idx % INPUT_COLORS.length];
     const iColorDim = dimHex(iColor, 0.25);      // dark tint when OFF
 
     // Circle fill: full color when ON, dark tint when OFF
@@ -194,13 +181,15 @@ export function render(ctx, circuit, uiState) {
     ctx.fillStyle = node.value ? '#000' : iColor;
     ctx.fillText(node.value ? '1' : '0', node.x, node.y);
 
-    // Node name below in the input's color
+    // Node name to the left of input node
     ctx.font = 'bold 11px "Courier New", Courier, monospace';
+    ctx.textAlign = 'right';
     ctx.fillStyle = iColor;
-    ctx.fillText(node.label || id, node.x, node.y + NODE_RADIUS + 10);
+    ctx.fillText(node.label || id, node.x - NODE_RADIUS - 6, node.y);
+    ctx.textAlign = 'center';
     ctx.font = 'bold 13px "Courier New", Courier, monospace';
 
-    // Output port dot on right edge — input's color
+    // Output port dot on bottom edge — input's color
     const outPos = getPortPos(node, true, 0, 1);
     ctx.beginPath();
     ctx.arc(outPos.x, outPos.y, PORT_RADIUS, 0, Math.PI * 2);
@@ -244,13 +233,13 @@ export function render(ctx, circuit, uiState) {
     ctx.fillStyle = outNode.value ? '#fff' : '#666';
     ctx.fillText(outNode.value ? '1' : '0', outNode.x, outNode.y);
 
-    // Target label below
+    // Target label below output node
     ctx.fillStyle = matched ? COLOR.OUTPUT_MATCHED : COLOR.OUTPUT_TARGET;
     ctx.font = 'bold 11px "Courier New", Courier, monospace';
     ctx.fillText(`->${target ? '1' : '0'}`, outNode.x, outNode.y + NODE_RADIUS + 10);
     ctx.font = 'bold 13px "Courier New", Courier, monospace';
 
-    // Input port dot on left edge of output node
+    // Input port dot on top edge of output node
     const inPos = getPortPos(outNode, false, 0, 1);
     ctx.beginPath();
     ctx.arc(inPos.x, inPos.y, PORT_RADIUS, 0, Math.PI * 2);
@@ -284,25 +273,43 @@ export function render(ctx, circuit, uiState) {
     ctx.font = 'bold 16px "Courier New", Courier, monospace';
     ctx.textBaseline = 'top';
 
-    // Timer (top-left)
-    const elapsed = uiState.elapsedMs ? (uiState.elapsedMs / 1000).toFixed(1) : '0.0';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = COLOR.TIMER;
-    ctx.shadowColor = COLOR.TIMER;
-    ctx.shadowBlur = 8;
-    ctx.fillText(`T:${elapsed}s`, 10, 8);
+    if (uiState.challengeMode) {
+      // Challenge HUD
+      const remaining = (uiState.timeRemaining / 1000).toFixed(1);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = uiState.timeRemaining < 10000 ? '#ff3333' : COLOR.TIMER;
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 8;
+      ctx.fillText(`T:${remaining}s`, 10, 8);
 
-    // Level name (top-center)
-    ctx.textAlign = 'center';
-    ctx.fillStyle = COLOR.ACCENT;
-    ctx.shadowColor = COLOR.ACCENT;
-    ctx.fillText(uiState.levelName || '', w / 2, 8);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLOR.ACCENT;
+      ctx.shadowColor = COLOR.ACCENT;
+      ctx.fillText('CHALLENGE', w / 2, 8);
 
-    // Score (top-right)
-    ctx.textAlign = 'right';
-    ctx.fillStyle = COLOR.SCORE;
-    ctx.shadowColor = COLOR.SCORE;
-    ctx.fillText(`${uiState.score || 0}pts`, w - 10, 8);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = COLOR.SCORE;
+      ctx.shadowColor = COLOR.SCORE;
+      ctx.fillText(`FOUND:${uiState.foundCount}/${uiState.totalCount}`, w - 10, 8);
+    } else {
+      // Normal HUD
+      const elapsed = uiState.elapsedMs ? (uiState.elapsedMs / 1000).toFixed(1) : '0.0';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = COLOR.TIMER;
+      ctx.shadowColor = COLOR.TIMER;
+      ctx.shadowBlur = 8;
+      ctx.fillText(`T:${elapsed}s`, 10, 8);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLOR.ACCENT;
+      ctx.shadowColor = COLOR.ACCENT;
+      ctx.fillText(uiState.levelName || '', w / 2, 8);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = COLOR.SCORE;
+      ctx.shadowColor = COLOR.SCORE;
+      ctx.fillText(`${uiState.score || 0}pts`, w - 10, 8);
+    }
 
     ctx.shadowBlur = 0;
   }

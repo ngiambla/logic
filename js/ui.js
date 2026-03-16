@@ -1,4 +1,5 @@
 import { GATE, GATE_LABEL } from './constants.js';
+import { isLevelUnlocked } from './scoring.js';
 
 const GATE_DESCRIPTIONS = {
   [GATE.AND]:  { name: 'AND',  symbol: 'AND',  truth: [[0,0,0],[0,1,0],[1,0,0],[1,1,1]], desc: 'Output is 1 only when ALL inputs are 1.' },
@@ -60,6 +61,25 @@ export function showTutorial(newGates) {
   });
 }
 
+export function showHint(hintText) {
+  const overlay = document.getElementById('screen-hint');
+  const content = document.getElementById('hint-content');
+
+  content.innerHTML = `
+    <h2 class="crt-title">// HINT</h2>
+    <p style="color: #aaa; line-height: 1.8; margin-bottom: 24px;">${hintText}</p>
+    <button id="hint-dismiss" class="crt-btn">[ DISMISS ]</button>
+  `;
+  overlay.classList.add('active');
+
+  return new Promise(resolve => {
+    document.getElementById('hint-dismiss').addEventListener('click', () => {
+      overlay.classList.remove('active');
+      resolve();
+    });
+  });
+}
+
 export function showLevelComplete(levelData, result) {
   const screen = document.getElementById('screen-complete');
   document.getElementById('complete-level').textContent = levelData.name;
@@ -85,15 +105,39 @@ export function populateLevelSelect(levels, progress, onSelect) {
   for (const level of levels) {
     const btn = document.createElement('button');
     btn.className = 'level-btn crt-btn';
+    const locked = !isLevelUnlocked(progress, level.id);
     const saved = progress.levels[level.id];
     const medal = saved ? saved.medal : '';
-    const medalTag = medal ? `<span class="lvl-medal">${getMedalEmoji(medal)}</span>` : '';
-    btn.innerHTML = `<span class="lvl-num">${level.id}</span>${medalTag}`;
-    btn.title = level.name || `Level ${level.id}`;
-    if (medal === 'GOLD') btn.classList.add('gold');
-    else if (medal === 'SILVER') btn.classList.add('silver');
-    else if (medal === 'BRONZE') btn.classList.add('bronze');
-    btn.addEventListener('click', () => onSelect(level.id));
+
+    if (locked) {
+      btn.classList.add('locked');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="lvl-num">${level.id}</span><span class="lvl-medal">[X]</span>`;
+      btn.title = `Level ${level.id} — Locked`;
+    } else {
+      const medalTag = medal ? `<span class="lvl-medal">${getMedalEmoji(medal)}</span>` : '';
+      btn.innerHTML = `<span class="lvl-num">${level.id}</span>${medalTag}`;
+      btn.title = level.name || `Level ${level.id}`;
+      if (medal === 'GOLD') btn.classList.add('gold');
+      else if (medal === 'SILVER') btn.classList.add('silver');
+      else if (medal === 'BRONZE') btn.classList.add('bronze');
+      btn.addEventListener('click', () => onSelect(level.id));
+    }
     grid.appendChild(btn);
+  }
+
+  // Show challenge mode button if all 15 levels complete
+  if (progress.unlockedUpTo > 15) {
+    const challengeBtn = document.createElement('button');
+    challengeBtn.className = 'crt-btn crt-btn-primary challenge-btn';
+    challengeBtn.textContent = '[ CHALLENGE MODE ]';
+    challengeBtn.style.marginTop = '16px';
+    challengeBtn.style.gridColumn = '1 / -1';
+    challengeBtn.addEventListener('click', () => {
+      if (typeof window._startChallenge === 'function') {
+        window._startChallenge();
+      }
+    });
+    grid.appendChild(challengeBtn);
   }
 }

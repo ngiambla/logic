@@ -1,3 +1,16 @@
 {
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node tests/run.js",
+    "deploy": "npm run build && npx gh-pages -d dist"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "logic-solver": "^2.0.1"
+  }
 }

@@ -1,5 +1,7 @@
 import { GATE, CANVAS_W, CANVAS_H } from './constants.js';
 import { buildCircuit, simulate, isSolved } from './circuit.js';
+import { autoLayoutVertical } from './layout.js';
+import { isSatisfiable, findAllSolutions } from './sat.js';
 
 function xorshift32(seed) {
   let x = (seed >>> 0) || 1;
@@ -17,10 +19,11 @@ export function generateLevel(levelNum) {
   const seed = (levelNum * 2654435761) >>> 0;
   const rng = xorshift32(seed);
 
-  const numInputs = Math.min(Math.max(2 + Math.floor((levelNum - 41) / 8), 2), 5);
-  // numGates includes the 2 final gates that feed the 2 outputs
-  const numInternalGates = Math.min(Math.max(2 + Math.floor((levelNum - 41) / 5), 2), 7);
-  const numGates = numInternalGates + 2; // +2 for the two output-feeding gates
+  const progress = levelNum - 16; // 0-based progression from first generated level
+  const numInputs = Math.min(Math.max(2 + Math.floor(progress / 8), 2), 5);
+  const numOutputs = Math.min(2 + Math.floor(progress / 10), 10);
+  const numInternalGates = Math.min(Math.max(2 + Math.floor(progress / 5), 2), 7);
+  const numGates = numInternalGates + numOutputs; // final gates feed the outputs
 
   // Build inputs
   const inputs = [];
@@ -31,7 +34,7 @@ export function generateLevel(levelNum) {
     inputs.push({ id, label: String.fromCharCode(65 + i), initialValue: false });
   }
 
-  // Build internal gate nodes (indices 0..numInternalGates-1)
+  // Build gate nodes
   const gateNodes = [];
   const gateIds = [];
   for (let i = 0; i < numGates; i++) {
@@ -46,57 +49,34 @@ export function generateLevel(levelNum) {
   for (let i = 0; i < numGates; i++) {
     const gate = gateNodes[i];
     const needsInputs = gate.type === GATE.NOT ? 1 : 2;
-    // Available sources: inputs + any previous gates
     const availableSources = i === 0
       ? inputIds
       : [...inputIds, ...gateIds.slice(0, i)];
 
-    const chosen = new Set();
     for (let j = 0; j < needsInputs; j++) {
-      // Pick source; allow duplicates only for single-input gates
       const srcId = availableSources[Math.floor(rng() * availableSources.length)];
       connections.push([srcId, gate.id]);
-      chosen.add(srcId);
     }
   }
 
-  // The last two gates feed the two outputs
-  const out0Id = 'out0';
-  const out1Id = 'out1';
-  const lastGate0 = gateIds[numGates - 2];
-  const lastGate1 = gateIds[numGates - 1];
-  connections.push([lastGate0, out0Id]);
-  connections.push([lastGate1, out1Id]);
-
-  // Auto-layout: columns
-  const gatesPerCol = Math.max(2, Math.ceil(numGates / 3));
-  const numCols = Math.ceil(numGates / gatesPerCol);
-  const colWidth = CANVAS_W / (numCols + 2);
-
-  // Position inputs
-  for (let i = 0; i < numInputs; i++) {
-    const spacing = CANVAS_H / (numInputs + 1);
-    inputs[i].x = colWidth * 0.7;
-    inputs[i].y = spacing * (i + 1);
+  // Last numOutputs gates feed the outputs
+  const outputIds = [];
+  const outputs = [];
+  for (let i = 0; i < numOutputs; i++) {
+    const outId = `out${i}`;
+    outputIds.push(outId);
+    outputs.push({ id: outId });
+    connections.push([gateIds[numGates - numOutputs + i], outId]);
   }
 
-  // Position gates
-  for (let i = 0; i < numGates; i++) {
-    const col = Math.floor(i / gatesPerCol);
-    const row = i % gatesPerCol;
-    const colCount = Math.min(gatesPerCol, numGates - col * gatesPerCol);
-    const colX = colWidth * (col + 1.5);
-    const spacing = CANVAS_H / (colCount + 1);
-    gateNodes[i].x = colX;
-    gateNodes[i].y = spacing * (row + 1);
+  // Prune floating inputs
+  const connectedInputs = new Set(connections.map(([from]) => from));
+  for (let i = inputs.length - 1; i >= 0; i--) {
+    if (!connectedInputs.has(inputs[i].id)) {
+      inputIds.splice(i, 1);
+      inputs.splice(i, 1);
+    }
   }
-
-  // Position outputs
-  const outputX = colWidth * (numCols + 1.5);
-  const outputs = [
-    { id: out0Id, x: outputX, y: CANVAS_H * 0.38 },
-    { id: out1Id, x: outputX, y: CANVAS_H * 0.62 },
-  ];
 
   const levelDesc = {
     id: levelNum,
@@ -106,7 +86,7 @@ export function generateLevel(levelNum) {
     gates: gateNodes,
     outputs,
     connections,
-    targetPattern: [true, true], // placeholder — will be computed below
+    targetPattern: new Array(numOutputs).fill(true), // placeholder
     targets: {
       gold: numGates * 4,
       silver: numGates * 9,
@@ -116,36 +96,90 @@ export function generateLevel(levelNum) {
     hint: 'Enumerate input combinations systematically.',
   };
 
-  // Build a temporary circuit to find achievable output patterns
-  // We must do this WITHOUT using buildCircuit (which calls _findNonWinningState)
-  // so we do a raw simulation pass.
-  const achievable = _findAchievablePatterns(levelDesc, inputIds, [out0Id, out1Id]);
+  // Auto-layout positions
+  autoLayoutVertical(levelDesc, CANVAS_W, CANVAS_H);
 
-  if (achievable.length === 0) {
-    // Degenerate circuit — fall back with a simple target
-    levelDesc.targetPattern = [true, false];
-    return levelDesc;
+  // Use SAT solver to find a valid target pattern
+  const totalPatterns = 1 << numOutputs;
+  const candidatePatterns = [];
+  for (let mask = 0; mask < totalPatterns; mask++) {
+    const pattern = [];
+    for (let i = 0; i < numOutputs; i++) {
+      pattern.push(!!(mask & (1 << i)));
+    }
+    // Check if this pattern is achievable but not trivially all-winning
+    if (isSatisfiable(levelDesc, pattern)) {
+      const solutions = findAllSolutions(levelDesc, pattern);
+      // Good target: at least 1 solution but not all input combos win
+      if (solutions.length > 0 && solutions.length < (1 << inputIds.length)) {
+        candidatePatterns.push({ pattern, solutionCount: solutions.length });
+      }
+    }
   }
 
-  // Choose a random achievable target pattern
-  const chosen = achievable[Math.floor(rng() * achievable.length)];
-  levelDesc.targetPattern = chosen.pattern;
+  if (candidatePatterns.length > 0) {
+    const chosen = candidatePatterns[Math.floor(rng() * candidatePatterns.length)];
+    levelDesc.targetPattern = chosen.pattern;
 
-  // Find a non-winning initial state (different from chosen.mask)
-  const nonWinningMask = _findNonWinningMask(
-    levelDesc, inputIds, [out0Id, out1Id], chosen.pattern
-  );
-
-  // Apply non-winning initial values
-  for (let i = 0; i < numInputs; i++) {
-    inputs[i].initialValue = !!(nonWinningMask & (1 << i));
+    // Find a non-winning initial state using SAT
+    const winningSolutions = findAllSolutions(levelDesc, chosen.pattern);
+    const winningMasks = new Set(winningSolutions.map(s => s.mask));
+    let nonWinningMask = 0;
+    for (let mask = 0; mask < (1 << inputIds.length); mask++) {
+      if (!winningMasks.has(mask)) {
+        nonWinningMask = mask;
+        break;
+      }
+    }
+    for (let i = 0; i < inputs.length; i++) {
+      inputs[i].initialValue = !!(nonWinningMask & (1 << i));
+    }
+  } else {
+    // All patterns are trivial — perturb circuit by cycling a gate type until non-trivial
+    let perturbed = false;
+    for (let g = 0; g < gateNodes.length && !perturbed; g++) {
+      const origType = gateNodes[g].type;
+      for (const alt of GATE_TYPES) {
+        if (alt === origType) continue;
+        gateNodes[g].type = alt;
+        autoLayoutVertical(levelDesc, CANVAS_W, CANVAS_H);
+        for (let mask = 0; mask < totalPatterns; mask++) {
+          const pattern = [];
+          for (let i = 0; i < numOutputs; i++) pattern.push(!!(mask & (1 << i)));
+          if (isSatisfiable(levelDesc, pattern)) {
+            const solutions = findAllSolutions(levelDesc, pattern);
+            if (solutions.length > 0 && solutions.length < (1 << inputIds.length)) {
+              levelDesc.targetPattern = pattern;
+              const winningMasks = new Set(solutions.map(s => s.mask));
+              let nonWinningMask = 0;
+              for (let m = 0; m < (1 << inputIds.length); m++) {
+                if (!winningMasks.has(m)) { nonWinningMask = m; break; }
+              }
+              for (let i = 0; i < inputs.length; i++) {
+                inputs[i].initialValue = !!(nonWinningMask & (1 << i));
+              }
+              perturbed = true;
+              break;
+            }
+          }
+        }
+        if (perturbed) break;
+        gateNodes[g].type = origType; // revert
+      }
+    }
+    if (!perturbed) {
+      // Ultimate fallback: brute-force
+      const achievable = _findAchievablePatterns(levelDesc, inputIds, outputIds);
+      if (achievable.length > 0) {
+        levelDesc.targetPattern = achievable[0].pattern;
+      }
+    }
   }
 
   return levelDesc;
 }
 
 function _rawSimulate(levelDesc, inputValues, outputIds) {
-  // Lightweight simulation without building a full circuit object
   const circuit = buildCircuit(levelDesc);
   const { nodes, inputIds } = circuit;
 
@@ -180,5 +214,5 @@ function _findNonWinningMask(levelDesc, inputIds, outputIds, targetPattern) {
     const matches = pattern.every((v, i) => v === targetPattern[i]);
     if (!matches) return mask;
   }
-  return 0; // All states win (trivial) — just return 0
+  return 0;
 }
