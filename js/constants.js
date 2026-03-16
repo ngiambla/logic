@@ -73,7 +73,9 @@ export function getCanvasSize() {
     return { width: 600, height: 900 };
   }
   const width = Math.max(320, Math.min(window.innerWidth, 600));
-  const height = Math.max(480, Math.min(window.innerHeight - 60, width * 1.5));
+  // Use visualViewport if available (accounts for mobile browser chrome)
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const height = Math.max(480, Math.min(vh - 60, width * 1.5));
   return { width, height };
 }
 

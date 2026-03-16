@@ -126,18 +126,16 @@ export function populateLevelSelect(levels, progress, onSelect) {
     grid.appendChild(btn);
   }
 
-  // Show challenge mode button if all 15 levels complete
-  if (progress.unlockedUpTo > 15) {
-    const challengeBtn = document.createElement('button');
-    challengeBtn.className = 'crt-btn crt-btn-primary challenge-btn';
-    challengeBtn.textContent = '[ CHALLENGE MODE ]';
-    challengeBtn.style.marginTop = '16px';
-    challengeBtn.style.gridColumn = '1 / -1';
-    challengeBtn.addEventListener('click', () => {
-      if (typeof window._startChallenge === 'function') {
-        window._startChallenge();
-      }
-    });
-    grid.appendChild(challengeBtn);
-  }
+  // Always show challenge mode button at the end of the grid
+  const challengeBtn = document.createElement('button');
+  challengeBtn.className = 'crt-btn crt-btn-primary challenge-btn';
+  challengeBtn.textContent = '[ CHALLENGE MODE ]';
+  challengeBtn.style.marginTop = '16px';
+  challengeBtn.style.gridColumn = '1 / -1';
+  challengeBtn.addEventListener('click', () => {
+    if (typeof window._startChallenge === 'function') {
+      window._startChallenge();
+    }
+  });
+  grid.appendChild(challengeBtn);
 }

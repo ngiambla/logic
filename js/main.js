@@ -158,7 +158,7 @@ function onLevelSolved() {
 }
 
 // --- Dynamic Resize ---
-window.addEventListener('resize', () => {
+function handleResize() {
   if (state.screen !== 'game' || !state.levelDesc || !state.circuit) return;
   canvasSize = applyCanvasSize();
   autoLayoutVertical(state.levelDesc, canvasSize.width, canvasSize.height);
@@ -183,7 +183,13 @@ window.addEventListener('resize', () => {
     }
   }
   computeWireRoutes(state.circuit);
-});
+}
+
+window.addEventListener('resize', handleResize);
+// Also listen to visualViewport resize (mobile browser chrome changes)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', handleResize);
+}
 
 // --- UI Event Handlers ---
 
