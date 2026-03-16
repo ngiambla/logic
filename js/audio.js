@@ -10,6 +10,8 @@ function getAudioCtx() {
 function playTone(freq, duration, type = 'square', volume = 0.1) {
   try {
     const ctx = getAudioCtx();
+    // Mobile browsers suspend AudioContext until resumed during a user gesture
+    if (ctx.state === 'suspended') ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
