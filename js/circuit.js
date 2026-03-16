@@ -182,34 +182,211 @@ export function getPortPos(node, isOutput, portIndex = 0, totalPorts = 1) {
 
 export function computeWireRoutes(circuit) {
   const { nodes, wires } = circuit;
+  const OBS_PAD = 4;
+
+  // --- Build gate obstacle bounding boxes ---
+  const obstacles = [];
+  for (const id in nodes) {
+    const node = nodes[id];
+    if (node.type === NODE_TYPE.GATE) {
+      obstacles.push({
+        x1: node.x - GATE_W / 2 - OBS_PAD,
+        y1: node.y - GATE_H / 2 - OBS_PAD,
+        x2: node.x + GATE_W / 2 + OBS_PAD,
+        y2: node.y + GATE_H / 2 + OBS_PAD,
+        cx: node.x,
+        nodeId: id,
+      });
+    }
+  }
+
+  // --- Discover depth rows from node y-positions ---
+  const rowYSet = new Set();
+  for (const id in nodes) rowYSet.add(Math.round(nodes[id].y));
+  const sortedRowYs = [...rowYSet].sort((a, b) => a - b);
+
+  // Compute routing bands between consecutive rows
+  // bandTop = bottom edge of upper row nodes, bandBottom = top edge of lower row nodes
+  const bands = [];
+  for (let i = 0; i < sortedRowYs.length - 1; i++) {
+    const upperY = sortedRowYs[i];
+    const lowerY = sortedRowYs[i + 1];
+    // Estimate node extent (worst case: gate)
+    const bandTop = upperY + GATE_H / 2 + 6;
+    const bandBot = lowerY - GATE_H / 2 - 6;
+    bands.push({
+      y: (bandTop + bandBot) / 2,
+      top: bandTop,
+      bot: bandBot,
+      space: Math.max(10, bandBot - bandTop),
+    });
+  }
+
+  // --- Phase 1: Compute port positions ---
   for (const wire of wires) {
     const fromNode = nodes[wire.fromId];
     const toNode = nodes[wire.toId];
-
     const toPortIdx = toNode.inputIds.indexOf(wire.fromId);
     const toTotalPorts = toNode.inputIds.length;
-
-    const portOut = getPortPos(fromNode, true, 0, 1);
-    const portIn = getPortPos(toNode, false, toPortIdx, toTotalPorts);
-
-    // V-H-V routing (vertical flow)
-    const midY = (portOut.y + portIn.y) / 2;
-
-    if (Math.abs(portOut.x - portIn.x) < 2) {
-      // Straight vertical line
-      wire.segments = [
-        { x1: portOut.x, y1: portOut.y, x2: portIn.x, y2: portIn.y },
-      ];
-    } else {
-      wire.segments = [
-        { x1: portOut.x, y1: portOut.y, x2: portOut.x, y2: midY     },
-        { x1: portOut.x, y1: midY,      x2: portIn.x,  y2: midY     },
-        { x1: portIn.x,  y1: midY,      x2: portIn.x,  y2: portIn.y },
-      ];
-    }
-    wire.portOut = portOut;
-    wire.portIn = portIn;
+    wire.portOut = getPortPos(fromNode, true, 0, 1);
+    wire.portIn = getPortPos(toNode, false, toPortIdx, toTotalPorts);
   }
+
+  // --- Phase 2: Assign each wire to a routing band ---
+  const bandWires = {}; // bandIndex -> [{wireIdx, xMin, xMax}, ...]
+  const wireBand = new Array(wires.length).fill(-1);
+
+  for (let wi = 0; wi < wires.length; wi++) {
+    const wire = wires[wi];
+
+    if (Math.abs(wire.portOut.x - wire.portIn.x) < 2) {
+      // Straight vertical — check for obstacle before committing
+      let blocked = false;
+      const x = wire.portOut.x;
+      const yMin = Math.min(wire.portOut.y, wire.portIn.y);
+      const yMax = Math.max(wire.portOut.y, wire.portIn.y);
+      for (const obs of obstacles) {
+        if (obs.nodeId === wire.fromId || obs.nodeId === wire.toId) continue;
+        if (x > obs.x1 && x < obs.x2 && yMin < obs.y2 && yMax > obs.y1) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) {
+        wire.segments = [
+          { x1: wire.portOut.x, y1: wire.portOut.y, x2: wire.portIn.x, y2: wire.portIn.y },
+        ];
+        continue;
+      }
+      // Blocked straight wire falls through to V-H-V routing
+    }
+
+    // Find the best band (between source and dest, closest to midpoint)
+    const midY = (wire.portOut.y + wire.portIn.y) / 2;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < bands.length; i++) {
+      if (bands[i].y < wire.portOut.y - 5 || bands[i].y > wire.portIn.y + 5) continue;
+      const d = Math.abs(bands[i].y - midY);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    // Fallback: closest band overall
+    if (bestDist === Infinity) {
+      for (let i = 0; i < bands.length; i++) {
+        const d = Math.abs(bands[i].y - midY);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+    }
+
+    wireBand[wi] = bestIdx;
+    if (!bandWires[bestIdx]) bandWires[bestIdx] = [];
+    const xMin = Math.min(wire.portOut.x, wire.portIn.x);
+    const xMax = Math.max(wire.portOut.x, wire.portIn.x);
+    bandWires[bestIdx].push({ wi, xMin, xMax });
+  }
+
+  // --- Phase 3: Channel assignment within each band (greedy interval coloring) ---
+  const wireHorizY = new Array(wires.length).fill(0);
+
+  for (const [bIdx, entries] of Object.entries(bandWires)) {
+    const band = bands[parseInt(bIdx)];
+    // Sort by left x-coordinate
+    entries.sort((a, b) => a.xMin - b.xMin);
+
+    // Greedy channel assignment: assign each wire the lowest channel
+    // whose existing wires don't overlap in x
+    const channels = []; // channel[c] = [{xMin, xMax}, ...]
+    const wireChannelIdx = [];
+
+    for (const entry of entries) {
+      let assigned = -1;
+      for (let c = 0; c < channels.length; c++) {
+        const overlaps = channels[c].some(
+          seg => seg.xMin < entry.xMax && entry.xMin < seg.xMax
+        );
+        if (!overlaps) {
+          assigned = c;
+          channels[c].push({ xMin: entry.xMin, xMax: entry.xMax });
+          break;
+        }
+      }
+      if (assigned === -1) {
+        assigned = channels.length;
+        channels.push([{ xMin: entry.xMin, xMax: entry.xMax }]);
+      }
+      wireChannelIdx.push({ wi: entry.wi, ch: assigned });
+    }
+
+    // Map channel indices to y-values within the band
+    const numChannels = channels.length;
+    const spacing = numChannels > 1
+      ? Math.min(8, band.space / (numChannels + 1))
+      : 0;
+    for (const { wi, ch } of wireChannelIdx) {
+      wireHorizY[wi] = band.y + (ch - (numChannels - 1) / 2) * spacing;
+    }
+  }
+
+  // --- Phase 4: Build V-H-V segments ---
+  for (let wi = 0; wi < wires.length; wi++) {
+    if (wireBand[wi] === -1) continue; // already handled (straight)
+    const wire = wires[wi];
+    const horizY = wireHorizY[wi];
+    wire.segments = [
+      { x1: wire.portOut.x, y1: wire.portOut.y, x2: wire.portOut.x, y2: horizY },
+      { x1: wire.portOut.x, y1: horizY,         x2: wire.portIn.x,  y2: horizY },
+      { x1: wire.portIn.x,  y1: horizY,         x2: wire.portIn.x,  y2: wire.portIn.y },
+    ];
+  }
+
+  // --- Phase 5: Obstacle avoidance for vertical segments passing through gates ---
+  for (let wi = 0; wi < wires.length; wi++) {
+    const wire = wires[wi];
+    const newSegments = [];
+
+    for (const seg of wire.segments) {
+      const isVert = Math.abs(seg.x1 - seg.x2) < 1;
+      if (!isVert) { newSegments.push(seg); continue; }
+
+      const x = seg.x1;
+      const yTop = Math.min(seg.y1, seg.y2);
+      const yBot = Math.max(seg.y1, seg.y2);
+      const goingDown = seg.y1 <= seg.y2;
+
+      // Find first obstacle this vertical segment crosses (exclude wire's own endpoints)
+      let hit = null;
+      for (const obs of obstacles) {
+        if (obs.nodeId === wire.fromId || obs.nodeId === wire.toId) continue;
+        if (x > obs.x1 && x < obs.x2 && yTop < obs.y2 - 1 && yBot > obs.y1 + 1) {
+          if (!hit || (goingDown ? obs.y1 < hit.y1 : obs.y1 > hit.y1)) hit = obs;
+        }
+      }
+
+      if (!hit) { newSegments.push(seg); continue; }
+
+      // Route around: pick side closer to wire's destination x
+      const destX = wire.portIn.x;
+      let detourX = (destX <= hit.cx) ? hit.x1 : hit.x2;
+      // Clamp to canvas bounds
+      detourX = Math.max(8, Math.min(detourX, 592));
+
+      if (goingDown) {
+        newSegments.push({ x1: x, y1: seg.y1, x2: x, y2: hit.y1 });
+        newSegments.push({ x1: x, y1: hit.y1, x2: detourX, y2: hit.y1 });
+        newSegments.push({ x1: detourX, y1: hit.y1, x2: detourX, y2: hit.y2 });
+        newSegments.push({ x1: detourX, y1: hit.y2, x2: x, y2: hit.y2 });
+        newSegments.push({ x1: x, y1: hit.y2, x2: x, y2: seg.y2 });
+      } else {
+        newSegments.push({ x1: x, y1: seg.y1, x2: x, y2: hit.y2 });
+        newSegments.push({ x1: x, y1: hit.y2, x2: detourX, y2: hit.y2 });
+        newSegments.push({ x1: detourX, y1: hit.y2, x2: detourX, y2: hit.y1 });
+        newSegments.push({ x1: detourX, y1: hit.y1, x2: x, y2: hit.y1 });
+        newSegments.push({ x1: x, y1: hit.y1, x2: x, y2: seg.y2 });
+      }
+    }
+    wire.segments = newSegments;
+  }
+
   assignWireColors(circuit);
 }
 

@@ -128,7 +128,6 @@ function startGameLoop() {
       const cs = state.challengeState;
       uiState.challengeMode = true;
       uiState.foundCount = cs.foundSolutions.length;
-      uiState.totalCount = cs.allSolutions.length;
       uiState.timeRemaining = Math.max(0, cs.timeLimit - (ts - cs.startTime));
     }
 
@@ -307,8 +306,13 @@ function doSubmitChallenge() {
 
 function showChallengeCompleteScreen(cs) {
   const score = calcChallengeScore(cs);
-  document.getElementById('challenge-found').textContent = cs.foundSolutions.length;
-  document.getElementById('challenge-total').textContent = cs.allSolutions.length;
+  const allFound = cs.foundSolutions.length === cs.allSolutions.length;
+  document.getElementById('challenge-title').textContent =
+    allFound ? '// CIRCUIT SOLVED' : '// TIME\'S UP';
+  document.getElementById('challenge-message').textContent =
+    allFound
+      ? 'You found all solutions to today\'s circuit!'
+      : `You found ${cs.foundSolutions.length} solution${cs.foundSolutions.length !== 1 ? 's' : ''}.`;
   document.getElementById('challenge-score').textContent = score + ' pts';
   btnSubmit.style.display = 'none';
   showScreen('screen-challenge-complete');

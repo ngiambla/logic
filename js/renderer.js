@@ -290,7 +290,7 @@ export function render(ctx, circuit, uiState) {
       ctx.textAlign = 'right';
       ctx.fillStyle = COLOR.SCORE;
       ctx.shadowColor = COLOR.SCORE;
-      ctx.fillText(`FOUND:${uiState.foundCount}/${uiState.totalCount}`, w - 10, 8);
+      ctx.fillText(`FOUND:${uiState.foundCount}`, w - 10, 8);
     } else {
       // Normal HUD
       const elapsed = uiState.elapsedMs ? (uiState.elapsedMs / 1000).toFixed(1) : '0.0';

@@ -82,7 +82,7 @@ export function getCanvasSize() {
 // Legacy constants for test compatibility
 export const CANVAS_W = 600;
 export const CANVAS_H = 900;
-export const GATE_W = 84;
-export const GATE_H = 50;
+export const GATE_W = 70;
+export const GATE_H = 40;
 export const NODE_RADIUS = 18;
 export const PORT_RADIUS = 4;
